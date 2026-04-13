@@ -7,10 +7,9 @@ from flask import Flask, request, Response
 
 app = Flask(__name__)
 
-# ดึงค่าจาก Environment Variables ใน Vercel Settings
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-REPO_OWNER = "ชื่อUserGitHubของคุณ"
-REPO_NAME = "ชื่อโปรเจกต์ของคุณ"
+REPO_OWNER = os.getenv("REPO_OWNER")
+REPO_NAME = os.getenv("REPO_NAME")
 WHITELIST_FILE = "whitelist.json"
 MAIN_SCRIPT_FILE = "main_script.lua"
 
@@ -20,7 +19,8 @@ def get_github_file(path):
     res = requests.get(url, headers=headers)
     if res.status_code == 200:
         data = res.json()
-        return json.loads(base64.b64decode(data['content']).decode('utf-8')) if path.endswith('.json') else base64.b64decode(data['content']).decode('utf-8'), data['sha']
+        decoded = base64.b64decode(data['content']).decode('utf-8')
+        return (json.loads(decoded) if path.endswith('.json') else decoded), data['sha']
     return None, None
 
 def update_github(path, content, sha):
@@ -31,47 +31,53 @@ def update_github(path, content, sha):
     requests.put(url, headers=headers, json=payload)
 
 @app.route('/')
-def verify():
-    # รับคีย์จาก _G.Key ที่ส่งผ่านมากับ URL (หรือ Headers)
+def handle_request():
     user_key = request.args.get('key')
     user_hwid = request.args.get('hwid')
-    
-    if not user_key or not user_hwid:
-        return Response("print('Error: Missing Key/HWID')", mimetype='text/plain')
 
+    # --- จังหวะที่ 1: ถ้ายังไม่มี key/hwid ส่งมา (คนเพิ่งกดรันครั้งแรก) ---
+    if not user_key or not user_hwid:
+        # ส่ง "Bridge Script" กลับไปดึงค่าแบบเงียบๆ
+        bridge_code = """
+        local k = _G.Key
+        local h = game:GetService("RbxAnalyticsService"):GetClientId()
+        local u = "https://your-project.vercel.app/?key="..k.."&hwid="..h
+        local s, r = pcall(function() return game:HttpGet(u) end)
+        if s then loadstring(r)() end
+        """
+        return Response(bridge_code, mimetype='text/plain')
+
+    # --- จังหวะที่ 2: เมื่อ Bridge Script ส่งค่ากลับมาเช็คที่เดิม ---
     data, sha = get_github_file(WHITELIST_FILE)
-    if not data: return Response("print('Error: Database Connection')", mimetype='text/plain')
+    if not data: return Response("print('Database Error')", mimetype='text/plain')
 
     keys = data.get("keys", {})
     if user_key not in keys:
-        return Response("game.Players.LocalPlayer:Kick('Invalid Key!')", mimetype='text/plain')
+        return Response("game.Players.LocalPlayer:Kick('Invalid Key')", mimetype='text/plain')
 
     info = keys[user_key]
     now = datetime.now()
 
-    # 1. เช็ควันหมดอายุ และ ลบคีย์ทิ้ง
-    if info["expiration"] != "permanent" and info["expiration"] not in ["1", "7"]:
+    # เช็คหมดอายุและลบ
+    if info["expiration"] not in ["permanent", "1", "7"]:
         expire_date = datetime.strptime(info["expiration"], "%Y-%m-%d")
         if now > expire_date:
             del data["keys"][user_key]
             update_github(WHITELIST_FILE, data, sha)
-            return Response("game.Players.LocalPlayer:Kick('Key Expired and Deleted!')", mimetype='text/plain')
+            return Response("game.Players.LocalPlayer:Kick('Expired')", mimetype='text/plain')
 
-    # 2. ผูก HWID ครั้งแรก และ คำนวณเวลา (1 หรือ 7 วัน)
+    # ผูก HWID & คำนวณเวลา
     if info["hwid"] is None:
         info["hwid"] = user_hwid
         if info["expiration"] in ["1", "7"]:
             days = int(info["expiration"])
             info["expiration"] = (now + timedelta(days=days)).strftime("%Y-%m-%d")
         update_github(WHITELIST_FILE, data, sha)
-        # ดึงสคริปต์หลักมาให้รันต่อทันทีหลังจากผูกเสร็จ
-        main_code, _ = get_github_file(MAIN_SCRIPT_FILE)
-        return Response(main_code, mimetype='text/plain')
-
-    # 3. ตรวจสอบ HWID ว่าตรงกันไหม
+    
+    # ตรวจสอบ HWID และส่งสคริปต์หลัก
     if info["hwid"] == user_hwid:
         main_code, _ = get_github_file(MAIN_SCRIPT_FILE)
         return Response(main_code, mimetype='text/plain')
-    else:
-        return Response("game.Players.LocalPlayer:Kick('HWID Mismatch!')", mimetype='text/plain')
-  
+    
+    return Response("game.Players.LocalPlayer:Kick('HWID Mismatch')", mimetype='text/plain')
+        
