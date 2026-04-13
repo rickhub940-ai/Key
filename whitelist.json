@@ -1,7 +1,7 @@
 {
     "keys": {
         "KEY-LIFETIME-001": {
-            "hwid": "54292dd6-2bfc-46b0-842a-68bc205547b2",
+            "hwid": "null",
             "expiration": "permanent"
         },
         "KEY-1DAY-999": {
