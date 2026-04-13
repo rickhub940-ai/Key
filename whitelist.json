@@ -1,16 +1,16 @@
 {
-  "keys": {
-    "KEY-LIFETIME-001": {
-        "hwid": null,
-        "expiration": "permanent"
-    },
-    "KEY-1DAY-999": {
-        "hwid": null,
-        "expiration": "1"
-    },
-    "KEY-7DAY-888": {
-        "hwid": null,
-        "expiration": "7"
+    "keys": {
+        "KEY-LIFETIME-001": {
+            "hwid": "54292dd6-2bfc-46b0-842a-68bc205547b2",
+            "expiration": "permanent"
+        },
+        "KEY-1DAY-999": {
+            "hwid": null,
+            "expiration": "1"
+        },
+        "KEY-7DAY-888": {
+            "hwid": null,
+            "expiration": "7"
+        }
     }
-  }
 }
