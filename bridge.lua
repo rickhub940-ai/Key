@@ -1,16 +1,13 @@
--- [[ ก่อน OBF: โค้ดต้นฉบับ ]]
-local key = _G.key
-local hwid = game:GetService("RbxAnalyticsService"):GetClientId()
+local k = _G.key
+local h = game:GetService("RbxAnalyticsService"):GetClientId()
+local d = "https://key-eta-one.vercel.app/"
+local q = "?key=" .. tostring(k) .. "&hwid=" .. tostring(h)
 
--- แยกส่วน URL หลบการสแกน String
-local d = "https://your-app.vercel.app/" 
-local p = "?key=" .. tostring(key) .. "&hwid=" .. tostring(hwid)
-
-local s, res = pcall(function()
-    return game:HttpGet(d .. p)
+local s, r = pcall(function()
+    return game:HttpGet(d .. q)
 end)
 
 if s then
-    local func = loadstring(res)
-    if func then func() end
+    local f = loadstring(r)
+    if f then f() end
 end
