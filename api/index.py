@@ -1,11 +1,14 @@
-import os, requests, base64, json, random, string
+import os, random, string, base64, json, requests
 from flask import Flask, request, Response
 
 app = Flask(__name__)
 
-# ฟังก์ชันสุ่ม Token 24 หลัก
+# ตัวแปรใน RAM สำหรับเก็บสถานะ Token
+PENDING_TOKENS = {}  # {token: (key, hwid)}
+USED_TOKENS = set()  # เก็บ Token ที่ใช้โหลดไฟล์ไปแล้ว
+
 def generate_token():
-    return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(24))
+    return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
 
 def get_github_content(path):
     token = os.getenv("GITHUB_TOKEN")
@@ -17,36 +20,53 @@ def get_github_content(path):
     if res.status_code == 200:
         data = res.json()
         decoded = base64.b64decode(data['content']).decode('utf-8')
-        return (json.loads(decoded) if path.endswith('.json') else decoded)
-    return None
+        return (json.loads(decoded) if path.endswith('.json') else decoded), data['sha']
+    return None, None
 
 @app.route('/')
-def main_handler():
-    # รับค่าจาก URL ตรงๆ ตามที่ต้องการ
+def handle():
     u_key = request.args.get('key')
     u_hwid = request.args.get('hwid')
+    u_token = request.args.get('token')
 
-    # รอบแรก: ถ้าไม่มีคีย์ส่งมา ให้ส่ง bridge.lua ไปก่อน
-    if not u_key:
-        bridge_code = get_github_content("bridge.lua")
-        return Response(bridge_code or "print('Error: Bridge not found')", mimetype='text/plain')
+    # --- ด่านที่ 2: การขอรับไฟล์ Main Script ---
+    if u_token:
+        # 1. เช็คว่าใช้ซ้ำไหม
+        if u_token in USED_TOKENS:
+            return Response("game.Players.LocalPlayer:Kick('Rick Hub: This token has already been used!')", mimetype='text/plain')
+        
+        # 2. เช็คความถูกต้อง
+        if u_token in PENDING_TOKENS and PENDING_TOKENS[u_token] == (u_key, u_hwid):
+            # ทำลาย Token ทันที! (ย้ายไปหมวดใช้แล้ว)
+            USED_TOKENS.add(u_token)
+            del PENDING_TOKENS[u_token]
+            
+            # ดึงสคริปต์หลักมาส่งให้
+            main_code, _ = get_github_content("main_script.lua")
+            return Response(main_code or "print('Error: Main Missing')", mimetype='text/plain')
+        
+        return Response("game.Players.LocalPlayer:Kick('Rick Hub: Invalid or Expired Token')", mimetype='text/plain')
 
-    # รอบสอง: เช็ค Whitelist และ HWID
-    whitelist = get_github_content("whitelist.json")
+    # --- ด่านที่ 1: ตรวจสอบ Whitelist และเจน Token ใหม่ ---
+    whitelist, _ = get_github_content("whitelist.json")
     if not whitelist or u_key not in whitelist.get("keys", {}):
         return Response("game.Players.LocalPlayer:Kick('Rick Hub: Invalid Key')", mimetype='text/plain')
 
-    target_info = whitelist["keys"][u_key]
-    if target_info.get("hwid") and target_info["hwid"] != u_hwid:
+    # เช็ค HWID (ถ้าใน JSON มีค่าอยู่แล้วต้องตรงกัน)
+    stored_hwid = whitelist["keys"][u_key].get("hwid")
+    if stored_hwid and stored_hwid != "null" and stored_hwid != u_hwid:
         return Response("game.Players.LocalPlayer:Kick('Rick Hub: HWID Mismatch')", mimetype='text/plain')
 
-    # ผ่านด่าน! ส่ง Main Script พร้อมฉีด Token สุ่ม
-    main_script = get_github_content("main_script.lua")
-    if main_script:
-        token = generate_token()
-        # ฉีด Token เข้าไปใน _G.Auth เพื่อให้สคริปต์หลักไปเช็คต่อ
-        protected_code = f"_G.Auth = '{token}';\n{main_script}"
-        return Response(protected_code, mimetype='text/plain')
-    
-    return Response("print('Error: Main Script missing')", mimetype='text/plain')
+    # เจน Token ใหม่สำหรับด่านสอง
+    new_token = generate_token()
+    PENDING_TOKENS[new_token] = (u_key, u_hwid)
+
+    # ส่ง Bridge ที่มี Token นี้ฝังอยู่กลับไป
+    bridge_code = f"""
+    local k, h, t = "{u_key}", "{u_hwid}", "{new_token}"
+    local url = "https://your-app.vercel.app/?key="..k.."&hwid="..h.."&token="..t
+    local success, result = pcall(function() return game:HttpGet(url) end)
+    if success then loadstring(result)() end
+    """
+    return Response(bridge_code, mimetype='text/plain')
     
