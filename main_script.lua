@@ -1,8 +1,8 @@
--- [[ ก่อน OBF: โค้ดต้นฉบับ ]]
+-- [[ Rick Hub Main Script ]]
 if _G.RickLoaded then return end
 _G.RickLoaded = true
 
-print("Rick Hub: One-Time Token Verified!")
+print("Rick Hub: One-Time Token Verified. Happy Farming!")
 
--- ใส่ระบบกันรันซ้ำ หรือเช็คค่าบางอย่างที่เป็นความลับ
-print(111)
+-- ใส่โค้ดฟาร์มของคุณต่อตรงนี้
+print(99)
