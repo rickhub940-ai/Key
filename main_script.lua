@@ -1,7 +1,14 @@
+-- [[ ส่วนเช็ค Token - สำคัญมาก ]]
 if not _G.Auth or type(_G.Auth) ~= "string" or #_G.Auth < 20 then
-    game.Players.LocalPlayer:Kick("Rick Hub: Security Violation (No Token)")
-    return
+    -- ถ้าไม่มี Token ที่ถูกต้องมาจากการรันผ่าน Server ให้หยุดทำงาน
+    return 
 end
-_G.Auth = nil -- ล้างทิ้งทันที
 
-print("Rick Hub Started!")
+-- ล้างค่า Token ทันทีเพื่อความปลอดภัย
+_G.Auth = nil 
+
+-- [[ เริ่มโค้ดฟาร์มหรือฟังก์ชันหลักของคุณด้านล่างนี้ ]]
+print("Rick Hub: Authenticated Successfully!")
+
+-- ตัวอย่าง:
+-- while task.wait(1) do ... end
