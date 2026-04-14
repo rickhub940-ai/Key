@@ -3,11 +3,11 @@ from flask import Flask, request, Response
 
 app = Flask(__name__)
 
-def generate_random_token(length=24):
-    characters = string.ascii_letters + string.digits
-    return ''.join(random.choice(characters) for i in range(length))
+# ฟังก์ชันสุ่ม Token 24 หลัก
+def generate_token():
+    return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(24))
 
-def get_github_file(path):
+def get_github_content(path):
     token = os.getenv("GITHUB_TOKEN")
     owner = os.getenv("REPO_OWNER")
     repo = os.getenv("REPO_NAME")
@@ -17,38 +17,36 @@ def get_github_file(path):
     if res.status_code == 200:
         data = res.json()
         decoded = base64.b64decode(data['content']).decode('utf-8')
-        return (json.loads(decoded) if path.endswith('.json') else decoded), data['sha']
-    return None, None
+        return (json.loads(decoded) if path.endswith('.json') else decoded)
+    return None
 
 @app.route('/')
-def handle_request():
-    # เปลี่ยนมาใช้ request.args เพื่อรับค่าจาก URL (?key=...&hwid=...)
+def main_handler():
+    # รับค่าจาก URL ตรงๆ ตามที่ต้องการ
     u_key = request.args.get('key')
     u_hwid = request.args.get('hwid')
 
-    # จังหวะที่ 1: ถ้าไม่มี key ส่งมา ให้ส่ง bridge.lua ไปก่อน
+    # รอบแรก: ถ้าไม่มีคีย์ส่งมา ให้ส่ง bridge.lua ไปก่อน
     if not u_key:
-        code, _ = get_github_file("bridge.lua")
-        return Response(code if code else "print('Error: No Bridge')", mimetype='text/plain')
+        bridge_code = get_github_content("bridge.lua")
+        return Response(bridge_code or "print('Error: Bridge not found')", mimetype='text/plain')
 
-    # จังหวะที่ 2: ตรวจสอบ Whitelist
-    data, sha = get_github_file("whitelist.json")
-    if not data or u_key not in data.get("keys", {}):
+    # รอบสอง: เช็ค Whitelist และ HWID
+    whitelist = get_github_content("whitelist.json")
+    if not whitelist or u_key not in whitelist.get("keys", {}):
         return Response("game.Players.LocalPlayer:Kick('Rick Hub: Invalid Key')", mimetype='text/plain')
 
-    # ตรวจ HWID (แบบง่าย)
-    info = data["keys"][u_key]
-    if info.get("hwid") and info["hwid"] != u_hwid:
+    target_info = whitelist["keys"][u_key]
+    if target_info.get("hwid") and target_info["hwid"] != u_hwid:
         return Response("game.Players.LocalPlayer:Kick('Rick Hub: HWID Mismatch')", mimetype='text/plain')
 
-    # ผ่าน! ส่ง Main Script + สุ่ม Token
-    main, _ = get_github_file("main_script.lua")
-    if main:
-        token = generate_random_token(24)
-        return Response(f"_G.Auth = '{token}';\n" + main, mimetype='text/plain')
+    # ผ่านด่าน! ส่ง Main Script พร้อมฉีด Token สุ่ม
+    main_script = get_github_content("main_script.lua")
+    if main_script:
+        token = generate_token()
+        # ฉีด Token เข้าไปใน _G.Auth เพื่อให้สคริปต์หลักไปเช็คต่อ
+        protected_code = f"_G.Auth = '{token}';\n{main_script}"
+        return Response(protected_code, mimetype='text/plain')
     
-    return Response("print('Error: Main Script Not Found')", mimetype='text/plain')
-
-def handler(event, context):
-    return app(event, context)
+    return Response("print('Error: Main Script missing')", mimetype='text/plain')
     
