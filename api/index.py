@@ -3,9 +3,10 @@ from flask import Flask, request, Response
 
 app = Flask(__name__)
 
-# ตัวแปรใน RAM สำหรับเก็บสถานะ Token
+# ตัวแปรใน RAM สำหรับเก็บสถานะ (ใช้แล้วทิ้ง)
+# หมายเหตุ: ถ้า Vercel รีสตาร์ทค่าจะหาย แต่ปลอดภัยสำหรับการรันสคริปต์ใหม่
 PENDING_TOKENS = {}  # {token: (key, hwid)}
-USED_TOKENS = set()  # เก็บ Token ที่ใช้โหลดไฟล์ไปแล้ว
+USED_TOKENS = set()  # เก็บ Token ที่โหลดไฟล์ไปแล้ว
 
 def generate_token():
     return ''.join(random.choice(string.ascii_letters + string.digits) for _ in range(32))
@@ -20,8 +21,8 @@ def get_github_content(path):
     if res.status_code == 200:
         data = res.json()
         decoded = base64.b64decode(data['content']).decode('utf-8')
-        return (json.loads(decoded) if path.endswith('.json') else decoded), data['sha']
-    return None, None
+        return (json.loads(decoded) if path.endswith('.json') else decoded)
+    return None
 
 @app.route('/')
 def handle():
@@ -29,44 +30,44 @@ def handle():
     u_hwid = request.args.get('hwid')
     u_token = request.args.get('token')
 
-    # --- ด่านที่ 2: การขอรับไฟล์ Main Script ---
+    # --- ด่านที่ 2: ดึงไฟล์สคริปต์หลัก (เช็ค Token) ---
     if u_token:
-        # 1. เช็คว่าใช้ซ้ำไหม
+        # เช็คว่า Token นี้เคยใช้ไปแล้วหรือยัง
         if u_token in USED_TOKENS:
-            return Response("game.Players.LocalPlayer:Kick('Rick Hub: This token has already been used!')", mimetype='text/plain')
+            return Response("game.Players.LocalPlayer:Kick('Rick Hub: This token is expired or reused!')", mimetype='text/plain')
         
-        # 2. เช็คความถูกต้อง
+        # เช็คว่า Token ถูกต้องและตรงกับ Key/HWID ไหม
         if u_token in PENDING_TOKENS and PENDING_TOKENS[u_token] == (u_key, u_hwid):
-            # ทำลาย Token ทันที! (ย้ายไปหมวดใช้แล้ว)
+            # ทำลาย Token ทันที!
             USED_TOKENS.add(u_token)
             del PENDING_TOKENS[u_token]
             
-            # ดึงสคริปต์หลักมาส่งให้
-            main_code, _ = get_github_content("main_script.lua")
-            return Response(main_code or "print('Error: Main Missing')", mimetype='text/plain')
+            # ดึงไฟล์หลักจาก GitHub มาส่งให้
+            main_code = get_github_content("main_script.lua")
+            return Response(main_code or "print('Error: Main Script Missing')", mimetype='text/plain')
         
-        return Response("game.Players.LocalPlayer:Kick('Rick Hub: Invalid or Expired Token')", mimetype='text/plain')
+        return Response("game.Players.LocalPlayer:Kick('Rick Hub: Invalid Session')", mimetype='text/plain')
 
-    # --- ด่านที่ 1: ตรวจสอบ Whitelist และเจน Token ใหม่ ---
-    whitelist, _ = get_github_content("whitelist.json")
+    # --- ด่านที่ 1: ตรวจสอบ Whitelist และเจน Token ---
+    whitelist = get_github_content("whitelist.json")
     if not whitelist or u_key not in whitelist.get("keys", {}):
         return Response("game.Players.LocalPlayer:Kick('Rick Hub: Invalid Key')", mimetype='text/plain')
 
-    # เช็ค HWID (ถ้าใน JSON มีค่าอยู่แล้วต้องตรงกัน)
+    # เช็ค HWID (ถ้าใน JSON มีค่าที่ไม่ใช่ null ต้องตรงกัน)
     stored_hwid = whitelist["keys"][u_key].get("hwid")
-    if stored_hwid and stored_hwid != "null" and stored_hwid != u_hwid:
+    if stored_hwid and stored_hwid not in ["null", None] and stored_hwid != u_hwid:
         return Response("game.Players.LocalPlayer:Kick('Rick Hub: HWID Mismatch')", mimetype='text/plain')
 
-    # เจน Token ใหม่สำหรับด่านสอง
+    # สร้าง Token สำหรับใช้ในด่านที่สอง
     new_token = generate_token()
     PENDING_TOKENS[new_token] = (u_key, u_hwid)
 
-    # ส่ง Bridge ที่มี Token นี้ฝังอยู่กลับไป
+    # ส่งโค้ด Bridge กลับไป (ด่านแรก)
     bridge_code = f"""
     local k, h, t = "{u_key}", "{u_hwid}", "{new_token}"
-    local url = "https://your-app.vercel.app/?key="..k.."&hwid="..h.."&token="..t
-    local success, result = pcall(function() return game:HttpGet(url) end)
-    if success then loadstring(result)() end
+    local url = "https://key-eta-one.vercel.app/?key="..k.."&hwid="..h.."&token="..t
+    local s, r = pcall(function() return game:HttpGet(url) end)
+    if s then loadstring(r)() end
     """
     return Response(bridge_code, mimetype='text/plain')
     
