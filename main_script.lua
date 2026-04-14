@@ -1,17 +1,7 @@
-
 if not _G.Auth or type(_G.Auth) ~= "string" or #_G.Auth < 20 then
-    game.Players.LocalPlayer:Kick("\n[Rick Hub Security]\nAccess Denied: Please run through the official loader.")
+    game.Players.LocalPlayer:Kick("Rick Hub: Security Violation (No Token)")
     return
 end
-_G.Auth = nil 
+_G.Auth = nil -- ล้างทิ้งทันที
 
-
-print("Rick Hub: Authorized Successfully!")
-
-while task.wait(1) do
-    print("Auto Farming...")
-end
-
-
-
-print("ok")
+print("Rick Hub Started!")
