@@ -1,14 +1,8 @@
--- [[ ส่วนเช็ค Token - สำคัญมาก ]]
-if not _G.Auth or type(_G.Auth) ~= "string" or #_G.Auth < 20 then
-    -- ถ้าไม่มี Token ที่ถูกต้องมาจากการรันผ่าน Server ให้หยุดทำงาน
-    return 
-end
+-- [[ ก่อน OBF: โค้ดต้นฉบับ ]]
+if _G.RickLoaded then return end
+_G.RickLoaded = true
 
--- ล้างค่า Token ทันทีเพื่อความปลอดภัย
-_G.Auth = nil 
+print("Rick Hub: One-Time Token Verified!")
 
--- [[ เริ่มโค้ดฟาร์มหรือฟังก์ชันหลักของคุณด้านล่างนี้ ]]
-print("Rick Hub: Authenticated Successfully!")
-
--- ตัวอย่าง:
--- while task.wait(1) do ... end
+-- ใส่ระบบกันรันซ้ำ หรือเช็คค่าบางอย่างที่เป็นความลับ
+print(111)
