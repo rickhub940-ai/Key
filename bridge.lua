@@ -1,15 +1,16 @@
-local k = _G.key
-local h = game:GetService("RbxAnalyticsService"):GetClientId()
+-- [[ ก่อน OBF: โค้ดต้นฉบับ ]]
+local key = _G.key
+local hwid = game:GetService("RbxAnalyticsService"):GetClientId()
 
--- URL ของ Vercel (แยกส่วนไว้ให้ OBF ทำงานได้เนียนขึ้น)
-local domain = "https://key-eta-one.vercel.app/"
-local query = "?key=" .. tostring(k) .. "&hwid=" .. tostring(h)
+-- แยกส่วน URL หลบการสแกน String
+local d = "https://your-app.vercel.app/" 
+local p = "?key=" .. tostring(key) .. "&hwid=" .. tostring(hwid)
 
-local success, result = pcall(function()
-    return game:HttpGet(domain .. query)
+local s, res = pcall(function()
+    return game:HttpGet(d .. p)
 end)
 
-if success then
-    local run = loadstring(result)
-    if run then run() end
+if s then
+    local func = loadstring(res)
+    if func then func() end
 end
