@@ -1,10 +1,15 @@
-local k = _G.key
+local k = _G.key -- ดึงจาก Loader
 local h = game:GetService("RbxAnalyticsService"):GetClientId()
-local d = "https://key-eta-one.vercel.app/"
-local q = "?key=" .. tostring(k) .. "&hwid=" .. tostring(h)
+
+-- ถ้า _G.key ดึงไม่ได้ ให้ลองใช้ค่าสำรองเพื่อเช็ค
+if not k or k == "" then
+    k = "NO_KEY_DETECTED" 
+end
+
+local url = "https://key-eta-one.vercel.app/?key="..tostring(k).."&hwid="..tostring(h)
 
 local s, r = pcall(function()
-    return game:HttpGet(d .. q)
+    return game:HttpGet(url)
 end)
 
 if s then
